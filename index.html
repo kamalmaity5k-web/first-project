@@ -1849,6 +1849,7 @@
       if (b === BLOCKS.BEDROCK) return; // Bedrock is indestructible!
 
       sound.breakBlock();
+      breakParticles.burst(x, y, z, getBlockParticleColor(b), 12);
       world.setBlock(x, y, z, BLOCKS.AIR);
       world.buildMesh(scene);
     }
@@ -1896,6 +1897,8 @@
 
     function explodeTNT(tx, ty, tz) {
       sound.tntExplode();
+      breakParticles.burst(tx, ty, tz, 0xffaa00, 25);
+      breakParticles.burst(tx, ty, tz, 0xef4444, 20);
       const radius = 3;
 
       for (let x = tx - radius; x <= tx + radius; x++) {
@@ -2135,6 +2138,9 @@
     document.getElementById('btn-start-game').addEventListener('click', () => {
       sound.init();
       document.getElementById('menu-screen').classList.add('hidden');
+      if (!('ontouchstart' in window) && window.innerWidth > 768) {
+        canvas.requestPointerLock();
+      }
     });
 
     document.getElementById('btn-menu').addEventListener('click', () => {
@@ -2167,6 +2173,7 @@
       const isSneaking = keys['ShiftLeft'] || keys['ShiftRight'] || mobileSneak;
 
       player.update(dt, inputDir, isJumping, isSneaking);
+      breakParticles.update(dt);
 
       // Day / Night Sun Orbit
       dayTime = (dayTime + dt * 0.008) % 1.0;
