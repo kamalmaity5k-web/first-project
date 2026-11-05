@@ -76,6 +76,18 @@
       "created_at": "2026-11-05T08:05:42.837Z",
       "sender": "macOS",
       "is_cancelled": false
+    },
+    {
+      "id": "dd523a34-7925-49dd-8626-764852eb5c0a",
+      "role": "user",
+      "content": "ok now make minecraft just like orginal",
+      "status": "pending",
+      "model": "gemini-3.8-flash-high",
+      "client_type": "gemini-bridge",
+      "parent_message_id": null,
+      "created_at": "2026-11-05T08:07:16.019Z",
+      "sender": "ios",
+      "is_cancelled": false
     }
   ]
 }
