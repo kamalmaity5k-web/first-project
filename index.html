@@ -1649,7 +1649,8 @@
         this.touchStartX = 0;
         this.touchStartY = 0;
         this.touchStartTime = 0;
-        this.minSwipeDistance = 28;
+        this.minSwipeDistance = 22;
+        this.swipeTriggered = false;
         this.lastTapTime = 0;
 
         this.bindTouch();
@@ -1660,14 +1661,16 @@
       bindTouch() {
         window.addEventListener('touchstart', (e) => {
           if (e.touches.length > 0) {
+            sound.init();
             this.touchStartX = e.touches[0].clientX;
             this.touchStartY = e.touches[0].clientY;
             this.touchStartTime = performance.now();
+            this.swipeTriggered = false;
 
             // Double tap check for Hoverboard
             const currentTime = performance.now();
             const tapGap = currentTime - this.lastTapTime;
-            if (tapGap < 300 && tapGap > 40) {
+            if (tapGap < 320 && tapGap > 40) {
               if (gameState === STATE.PLAYING) {
                 player.activateHoverboard();
               }
@@ -1676,7 +1679,31 @@
           }
         }, { passive: false });
 
+        window.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 0 || this.swipeTriggered) return;
+          const deltaX = e.touches[0].clientX - this.touchStartX;
+          const deltaY = e.touches[0].clientY - this.touchStartY;
+          const absX = Math.abs(deltaX);
+          const absY = Math.abs(deltaY);
+
+          if (Math.max(absX, absY) > this.minSwipeDistance) {
+            this.swipeTriggered = true;
+            if (gameState === STATE.PLAYING) {
+              if (absX > absY) {
+                if (deltaX > 0) player.moveLane(1);
+                else player.moveLane(-1);
+              } else {
+                if (deltaY < 0) player.jump();
+                else player.roll();
+              }
+            } else if (gameState === STATE.MENU) {
+              startGame();
+            }
+          }
+        }, { passive: false });
+
         window.addEventListener('touchend', (e) => {
+          if (this.swipeTriggered) return;
           if (e.changedTouches.length === 0) return;
           const deltaX = e.changedTouches[0].clientX - this.touchStartX;
           const deltaY = e.changedTouches[0].clientY - this.touchStartY;
@@ -1686,11 +1713,9 @@
           if (Math.max(absX, absY) > this.minSwipeDistance) {
             if (gameState === STATE.PLAYING) {
               if (absX > absY) {
-                // Horizontal Swipe
                 if (deltaX > 0) player.moveLane(1);
                 else player.moveLane(-1);
               } else {
-                // Vertical Swipe
                 if (deltaY < 0) player.jump();
                 else player.roll();
               }
@@ -1769,23 +1794,81 @@
     const input = new InputHandler();
 
     /* ==========================================================================
+       SPARKLE PARTICLES FOR COLLECTIBLES
+       ========================================================================== */
+    class SparkleParticles {
+      constructor() {
+        this.particles = [];
+        const geo = new THREE.BoxGeometry(0.14, 0.14, 0.14);
+        this.meshPool = [];
+        for (let i = 0; i < 45; i++) {
+          const mat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+          const m = new THREE.Mesh(geo, mat);
+          m.visible = false;
+          scene.add(m);
+          this.meshPool.push(m);
+        }
+      }
+
+      burst(x, y, z, color = 0xffea00, count = 8) {
+        for (let i = 0; i < count; i++) {
+          const mesh = this.meshPool.find(m => !m.visible);
+          if (!mesh) break;
+          mesh.material.color.setHex(color);
+          mesh.position.set(x, y, z);
+          mesh.scale.set(1, 1, 1);
+          mesh.visible = true;
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 2.5 + Math.random() * 4.5;
+          this.particles.push({
+            mesh: mesh,
+            vx: Math.cos(angle) * speed,
+            vy: 2.5 + Math.random() * 4,
+            vz: Math.sin(angle) * speed,
+            life: 0.45
+          });
+        }
+      }
+
+      update(dt) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.life -= dt;
+          if (p.life <= 0) {
+            p.mesh.visible = false;
+            this.particles.splice(i, 1);
+            continue;
+          }
+          p.vy -= 22 * dt;
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.mesh.position.z += p.vz * dt;
+          const s = Math.max(0.01, p.life / 0.45);
+          p.mesh.scale.set(s, s, s);
+        }
+      }
+    }
+
+    const sparkles = new SparkleParticles();
+
+    /* ==========================================================================
        COLLISION & GAMEPLAY LOGIC
        ========================================================================== */
-    function checkCollisions() {
+    function checkCollisions(prevZ, currZ) {
       const pBox = player.getBounds();
       let onPlatformY = 0;
+
+      const pMinZ = Math.min(prevZ, currZ) - 0.45;
+      const pMaxZ = Math.max(prevZ, currZ) + 0.45;
 
       // Check obstacles
       for (let i = 0; i < track.obstacles.length; i++) {
         const obs = track.obstacles[i];
 
         if (obs.type === 'LOW_BARRIER') {
-          // Check X overlap
           if (Math.abs(player.group.position.x - obs.x) < obs.width / 2) {
-            // Check Z overlap
-            if (player.group.position.z < obs.z + obs.depth / 2 && player.group.position.z > obs.z - obs.depth / 2) {
-              // Check Y: if feet are below hurdle top, collision!
-              if (pBox.minY < obs.height) {
+            if (obs.z >= pMinZ && obs.z <= pMaxZ) {
+              if (pBox.minY < obs.height - 0.1) {
                 handleCrash();
                 return;
               }
@@ -1793,9 +1876,8 @@
           }
         } else if (obs.type === 'HIGH_BARRIER') {
           if (Math.abs(player.group.position.x - obs.x) < obs.width / 2) {
-            if (player.group.position.z < obs.z + obs.depth / 2 && player.group.position.z > obs.z - obs.depth / 2) {
-              // High barrier clearance is under obs.minY. If player top head hits the bar:
-              if (pBox.maxY > obs.minY) {
+            if (obs.z >= pMinZ && obs.z <= pMaxZ) {
+              if (pBox.maxY > obs.minY + 0.05) {
                 handleCrash();
                 return;
               }
@@ -1806,18 +1888,18 @@
           const halfL = obs.length / 2;
 
           if (Math.abs(player.group.position.x - obs.x) < halfW + 0.15) {
-            // Inside train Z span
-            if (player.group.position.z <= obs.z + halfL && player.group.position.z >= obs.z - halfL) {
-              // Ramp assistance: if player is entering from the front ramp
-              if (obs.hasRamp && player.group.position.z > obs.z + halfL - 3.5) {
-                const rampProgress = (obs.z + halfL - player.group.position.z) / 3.5;
-                const rampHeight = rampProgress * obs.topY;
-                onPlatformY = Math.max(onPlatformY, rampHeight);
-              } else if (pBox.minY >= obs.topY - 0.45) {
+            // Front ramp zone
+            if (obs.hasRamp && currZ <= obs.z + halfL + 3.8 && currZ >= obs.z + halfL) {
+              const rampProgress = (obs.z + halfL + 3.8 - currZ) / 3.8;
+              const rampHeight = THREE.MathUtils.clamp(rampProgress, 0, 1) * obs.topY;
+              onPlatformY = Math.max(onPlatformY, rampHeight);
+            } else if (currZ < obs.z + halfL && currZ >= obs.z - halfL) {
+              // Inside train span
+              if (player.group.position.y >= obs.topY - 0.5) {
                 // Running on top of the train roof!
                 onPlatformY = Math.max(onPlatformY, obs.topY);
               } else {
-                // Smashed into front or side of the train!
+                // Crashed into train!
                 handleCrash();
                 return;
               }
@@ -1835,34 +1917,47 @@
 
         // Magnet attraction effect
         if (activePowerups.magnet > 0 && col.type === 'COIN') {
-          if (dist < 14) {
-            // Lerp coin smoothly toward player
-            col.mesh.position.lerp(player.group.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.22);
+          if (dist < 15) {
+            col.mesh.position.lerp(player.group.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.25);
           }
         }
 
         // Pickup threshold
-        if (dist < 1.35) {
+        if (dist < 1.45) {
           collectItem(col, i);
         }
       }
     }
 
     function collectItem(col, index) {
+      const pos = col.mesh.position;
       if (col.type === 'COIN') {
         const value = 1 * (activePowerups.multiplier > 0 ? 2 : 1);
         coins += value;
         score += 15 * multiplier;
         sound.coin();
+        sparkles.burst(pos.x, pos.y, pos.z, 0xffd700, 7);
         updateHudCoins();
         updateHudScore();
       } else {
         // Powerup
         sound.powerup();
+        sparkles.burst(pos.x, pos.y, pos.z, 0x38bdf8, 14);
         if (col.type === 'MAGNET') {
           activePowerups.magnet = 10;
           createScorePopup(window.innerWidth / 2, window.innerHeight * 0.4, "🧲 COIN MAGNET!");
         } else if (col.type === 'MULTIPLIER') {
+          activePowerups.multiplier = 10;
+          createScorePopup(window.innerWidth / 2, window.innerHeight * 0.4, "⭐ 2X SCORE MULTIPLIER!");
+        } else if (col.type === 'SNEAKERS') {
+          activePowerups.sneakers = 10;
+          createScorePopup(window.innerWidth / 2, window.innerHeight * 0.4, "👟 SUPER SNEAKERS!");
+        }
+      }
+
+      scene.remove(col.mesh);
+      track.collectibles.splice(index, 1);
+    }
           activePowerups.multiplier = 10;
           createScorePopup(window.innerWidth / 2, window.innerHeight * 0.4, "⭐ 2X SCORE MULTIPLIER!");
         } else if (col.type === 'SNEAKERS') {
