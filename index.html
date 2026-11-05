@@ -1242,6 +1242,11 @@
       // Voxel Meshing with Hidden-Face Culling
       buildMesh(scene) {
         if (this.chunkGroup) {
+          this.chunkGroup.traverse(child => {
+            if (child.isMesh && child.geometry) {
+              child.geometry.dispose();
+            }
+          });
           scene.remove(this.chunkGroup);
         }
 
