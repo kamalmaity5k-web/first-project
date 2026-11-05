@@ -1407,6 +1407,81 @@
     scene.add(wireframeBox);
 
     /* ==========================================================================
+       BLOCK BREAK PARTICLES
+       ========================================================================== */
+    class BlockBreakParticles {
+      constructor() {
+        this.particles = [];
+        const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+        this.meshPool = [];
+        for (let i = 0; i < 50; i++) {
+          const mat = new THREE.MeshBasicMaterial({ color: 0x888888 });
+          const m = new THREE.Mesh(geo, mat);
+          m.visible = false;
+          scene.add(m);
+          this.meshPool.push(m);
+        }
+      }
+
+      burst(x, y, z, colorHex = 0x866043, count = 10) {
+        for (let i = 0; i < count; i++) {
+          const m = this.meshPool.find(p => !p.visible);
+          if (!m) break;
+          m.material.color.setHex(colorHex);
+          m.position.set(x + 0.5 + (Math.random() - 0.5) * 0.4, y + 0.5 + (Math.random() - 0.5) * 0.4, z + 0.5 + (Math.random() - 0.5) * 0.4);
+          m.scale.set(1, 1, 1);
+          m.visible = true;
+          this.particles.push({
+            mesh: m,
+            vx: (Math.random() - 0.5) * 4.5,
+            vy: 2.2 + Math.random() * 3.5,
+            vz: (Math.random() - 0.5) * 4.5,
+            life: 0.45
+          });
+        }
+      }
+
+      update(dt) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.life -= dt;
+          if (p.life <= 0) {
+            p.mesh.visible = false;
+            this.particles.splice(i, 1);
+            continue;
+          }
+          p.vy -= 18 * dt;
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.mesh.position.z += p.vz * dt;
+          const s = Math.max(0.01, p.life / 0.45);
+          p.mesh.scale.set(s, s, s);
+        }
+      }
+    }
+
+    const breakParticles = new BlockBreakParticles();
+
+    function getBlockParticleColor(blockType) {
+      switch(blockType) {
+        case BLOCKS.GRASS: return 0x599c2d;
+        case BLOCKS.DIRT: return 0x866043;
+        case BLOCKS.STONE: return 0x757575;
+        case BLOCKS.COBBLESTONE: return 0x626262;
+        case BLOCKS.WOOD: return 0x695436;
+        case BLOCKS.PLANKS: return 0xa2824e;
+        case BLOCKS.LEAVES: return 0x3c8824;
+        case BLOCKS.GLASS: return 0xdbeeff;
+        case BLOCKS.SAND: return 0xd7c58d;
+        case BLOCKS.BRICK: return 0xb75344;
+        case BLOCKS.TNT: return 0xdb3226;
+        case BLOCKS.DIAMOND_ORE: return 0x2ce3d6;
+        case BLOCKS.GOLD_ORE: return 0xfcee4b;
+        default: return 0x888888;
+      }
+    }
+
+    /* ==========================================================================
        PLAYER & FIRST-PERSON CONTROLLER
        ========================================================================== */
     const world = new VoxelWorld();
@@ -1414,7 +1489,18 @@
 
     class PlayerController {
       constructor() {
-        this.position = new THREE.Vector3(WORLD_W / 2 + 0.5, 16, WORLD_D / 2 + 0.5);
+        const spawnX = Math.floor(WORLD_W / 2);
+        const spawnZ = Math.floor(WORLD_D / 2);
+        let spawnY = 16;
+        for (let y = WORLD_H - 1; y >= 0; y--) {
+          const b = world.getBlock(spawnX, y, spawnZ);
+          if (b !== BLOCKS.AIR && b !== BLOCKS.WATER) {
+            spawnY = y + 1.2;
+            break;
+          }
+        }
+
+        this.position = new THREE.Vector3(spawnX + 0.5, spawnY, spawnZ + 0.5);
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.pitch = 0; // vertical camera rotation
         this.yaw = 0;   // horizontal camera rotation
