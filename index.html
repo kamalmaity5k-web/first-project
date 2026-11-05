@@ -2150,6 +2150,7 @@
         currentSpeed = Math.min(MAX_SPEED, INITIAL_SPEED + (distanceTraveled / 100) * SPEED_ACCEL);
 
         // Advance player along -Z axis
+        const prevPlayerZ = player.group.position.z;
         const moveDist = currentSpeed * dt;
         player.group.position.z -= moveDist;
         distanceTraveled += moveDist;
@@ -2159,11 +2160,12 @@
         score += moveDist * 1.2 * multi;
         updateHudScore();
 
-        // Update player & world
+        // Update player, world & effects
         player.update(dt, currentSpeed);
         track.update(player.group.position.z);
+        sparkles.update(dt);
         updatePowerups(dt);
-        checkCollisions();
+        checkCollisions(prevPlayerZ, player.group.position.z);
 
         // Smooth camera follow
         const targetCamX = player.group.position.x * 0.45;
@@ -2201,13 +2203,18 @@
     requestAnimationFrame(animate);
 
     /* ==========================================================================
-       RESPONSIVE RESIZE
+       RESPONSIVE RESIZE & MOBILE ORIENTATION
        ========================================================================== */
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
+    function updateCameraAspect() {
+      const aspect = window.innerWidth / window.innerHeight;
+      camera.aspect = aspect;
+      camera.fov = aspect < 1 ? 72 : 58;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    }
+    window.addEventListener('resize', updateCameraAspect);
+    window.addEventListener('orientationchange', () => setTimeout(updateCameraAspect, 150));
+    updateCameraAspect();
 
   </script>
 </body>
