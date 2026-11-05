@@ -859,7 +859,7 @@
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
     scene.add(ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xffecd0, 0.85);
+    const sunLight = new THREE.DirectionalLight(0xffecd0, 0.9);
     sunLight.position.set(20, 45, 20);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 1024;
@@ -871,6 +871,7 @@
     sunLight.shadow.camera.top = 20;
     sunLight.shadow.camera.bottom = -20;
     scene.add(sunLight);
+    scene.add(sunLight.target);
 
     // Warm side bounce light
     const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
@@ -1231,7 +1232,6 @@
         groundGeo.rotateX(-Math.PI / 2);
         const groundMesh = new THREE.Mesh(groundGeo, MATERIALS.ground);
         groundMesh.receiveShadow = true;
-        groundGroup = groundMesh;
         segGroup.add(groundMesh);
 
         // Train Rails & Sleepers for each of the 3 lanes
