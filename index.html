@@ -1958,17 +1958,6 @@
       scene.remove(col.mesh);
       track.collectibles.splice(index, 1);
     }
-          activePowerups.multiplier = 10;
-          createScorePopup(window.innerWidth / 2, window.innerHeight * 0.4, "⭐ 2X SCORE MULTIPLIER!");
-        } else if (col.type === 'SNEAKERS') {
-          activePowerups.sneakers = 10;
-          createScorePopup(window.innerWidth / 2, window.innerHeight * 0.4, "👟 SUPER SNEAKERS!");
-        }
-      }
-
-      scene.remove(col.mesh);
-      track.collectibles.splice(index, 1);
-    }
 
     function handleCrash() {
       if (activePowerups.hoverboard) {
